@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Droplet-TENG 인터랙티브 물리 시뮬레이션 & 완성형 수식 랩 v2</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for Live Mathematical Graphing & Curve Fitting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- MathJax for Crisp Mathematical Typography -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #090d16;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+        /* Glassmorphism Panel */
+        .lab-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.75);
+            border-radius: 1rem;
+        }
+        canvas {
+            display: block;
+        }
+        .formula-box {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.92) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/95 px-4 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                    Droplet-TENG 인터랙티브 물리 시뮬레이터
+                    <span class="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">Paschen 327V 통합판</span>
+                </h1>
+                <p class="text-xs text-slate-400">경사각 수막 감쇄($e^{-k/\sin\theta}$) + 공기 파셴 한계($327\text{ V}$) + 계측 효율($\eta_{\text{meas}}$)</p>
+            </div>
+        </div>
+
+        <!-- Material Selector Pills -->
+        <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400 px-2 hidden sm:inline">유전체 시료:</span>
+            <button onclick="selectMaterial('PTFE')" id="btn-PTFE" class="mat-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/25">
+                PTFE (k=0.08)
+            </button>
+            <button onclick="selectMaterial('PI')" id="btn-PI" class="mat-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition text-slate-300 hover:bg-slate-800">
+                PI (k=0.42)
+            </button>
+            <button onclick="selectMaterial('PVC')" id="btn-PVC" class="mat-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition text-slate-300 hover:bg-slate-800">
+                PVC (k=0.30)
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Split Layout -->
+    <main class="flex-1 p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 max-w-[1600px] w-full mx-auto">
+        
+        <!-- LEFT COLUMN: Complete Formula Panel + Game Canvas + Oscilloscope (7 cols on lg) -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+
+            <!-- TOP/LEFT REAL-TIME COMPLETE FORMULA PANEL -->
+            <div class="formula-box rounded-2xl p-4 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/70 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-400/40 text-sky-300 font-mono text-[11px] font-bold">완성형 통합 방정식</span>
+                        <h2 class="text-xs sm:text-sm font-bold text-white">수막 감쇄 및 공기 파셴 절연 파괴($327\text{ V}$) 결합 모델</h2>
+                    </div>
+                    <div class="text-[11px] font-mono text-slate-400">
+                        $V_{\text{ideal}} = \frac{|\sigma_d| \cdot d}{\varepsilon_0 \varepsilon_r} =$ <span id="eq-videal-top" class="text-sky-300 font-bold">806.7 V</span>
+                    </div>
+                </div>
+
+                <!-- 1) Symbolic Unified Equation -->
+                <div class="bg-slate-950/75 rounded-xl px-3 py-2.5 border border-slate-800/90 overflow-x-auto">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">① 기호 완성형 수식 (Symbolic Unified Equation)</div>
+                    <div class="text-xs sm:text-sm text-slate-100 py-0.5">
+                        $$V_{\text{peak}}(\theta_{\text{tilt}}) = \eta_{\text{meas}} \cdot \left[ \frac{V_{\text{ideal}} \cdot \exp\left(-\frac{k}{\sin\theta_{\text{tilt}}}\right) \cdot V_{\text{Paschen}}}{V_{\text{ideal}} \cdot \exp\left(-\frac{k}{\sin\theta_{\text{tilt}}}\right) + V_{\text{Paschen}}} \right]$$
+                    </div>
+                </div>
+
+                <!-- 2) Live Numerical Substitution Equation -->
+                <div class="bg-slate-950/90 rounded-xl px-3.5 py-3 border border-sky-500/30 overflow-x-auto">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[10px] text-sky-400 uppercase tracking-wider font-semibold">② 현재 조건 실시간 수치 대입식 (Live Numerical Substitution)</span>
+                        <span class="text-[11px] font-mono text-slate-400">
+                            시료: <strong id="eq-mat-label" class="text-white">PTFE</strong> ($|\sigma_d|=150\,\mu\text{C/m}^2, \varepsilon_r=2.1, d=100\,\mu\text{m}$)
+                        </span>
+                    </div>
+                    <div id="live-numerical-formula" class="font-mono text-xs sm:text-[13px] leading-relaxed text-slate-200 whitespace-nowrap">
+                        <!-- Dynamically populated by JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Interactive 2D Simulation Viewport -->
+            <div class="lab-panel p-3 sm:p-4 flex flex-col relative overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2 z-10">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h2 class="text-sm font-semibold text-slate-200">실시간 유체-정전기 동역학 시뮬레이터</h2>
+                        <span class="text-[11px] text-slate-400 hidden sm:inline">(화면 클릭 또는 Space바: 물방울 투하)</span>
+                    </div>
+                    <!-- Live Telemetry Badges -->
+                    <div class="flex items-center gap-2 font-mono text-xs">
+                        <div class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-700 text-slate-300">
+                            경사각: <span id="hud-angle" class="text-sky-400 font-bold">45°</span>
+                        </div>
+                        <div class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-700 text-slate-300">
+                            예상 V_peak: <span id="hud-vpeak" class="text-amber-400 font-bold">67.2 V</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Canvas Container -->
+                <div id="sim-container" class="relative w-full h-[310px] sm:h-[360px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden cursor-pointer select-none">
+                    <canvas id="simCanvas" class="w-full h-full"></canvas>
+                    
+                    <!-- Floating Legend Overlay -->
+                    <div class="absolute top-3 left-3 bg-slate-900/85 backdrop-blur border border-slate-800 rounded-lg p-2.5 text-[11px] space-y-1 pointer-events-none">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-1.5 rounded bg-amber-400 inline-block"></span>
+                            <span class="text-slate-300">상부 전극 (Top Contact Electrode)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-1.5 rounded bg-sky-400 inline-block"></span>
+                            <span class="text-slate-300">유전체층 (<span id="legend-mat">PTFE</span>, 표면 음전하 -)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-1.5 rounded bg-rose-500 inline-block"></span>
+                            <span class="text-slate-300">하부 전극 (Bottom Electrode)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-1.5 rounded bg-cyan-300/70 inline-block"></span>
+                            <span class="text-slate-300">잔여 수막 (Water Film 누설원)</span>
+                        </div>
+                    </div>
+
+                    <!-- Paschen Breakdown Saturation Badge -->
+                    <div id="paschen-badge" class="hidden absolute top-3 right-3 bg-rose-500/20 border border-rose-500/60 text-rose-300 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                        <span>⚡ 파셴 327V 절연 파괴 한계 지배 구간</span>
+                    </div>
+                </div>
+
+                <!-- Action Controls Bar -->
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <button id="btn-drop" onclick="spawnDroplet()" class="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold text-sm transition flex items-center gap-2 shadow-lg shadow-sky-500/20">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                            </svg>
+                            물방울 떨어뜨리기 (Space)
+                        </button>
+                        <button id="btn-auto" onclick="toggleAutoDrop()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-sm transition flex items-center gap-2">
+                            <span id="auto-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                            자동 연속 낙하: <span id="auto-text">OFF</span>
+                        </button>
+                    </div>
+                    <button onclick="clearWaterFilm()" class="px-3 py-2 rounded-xl bg-slate-800/70 hover:bg-slate-700 border border-slate-700/80 text-xs text-slate-300 transition">
+                        표면 건조 (수막 초기화)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Oscilloscope Panel -->
+            <div class="lab-panel p-3 sm:p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-emerald-400 font-mono font-bold text-xs px-2 py-0.5 rounded bg-emerald-400/10 border border-emerald-400/30">OSC-CH1</span>
+                        <h3 class="text-sm font-semibold text-slate-200">실시간 개방 회로 전압 ($V_{oc}$) 오실로스코프 파형</h3>
+                    </div>
+                    <div class="font-mono text-xs text-slate-400">
+                        최근 측정 피크: <span id="osc-last-peak" class="text-emerald-400 font-bold text-sm">0.0 V</span>
+                    </div>
+                </div>
+                <div class="w-full h-[130px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden relative">
+                    <canvas id="oscCanvas" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Parameter Sliders, Theory Curve & Experimental Data Fitting (5 cols on lg) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+
+            <!-- Parameter Controls Card -->
+            <div class="lab-panel p-4 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <h2 class="text-sm font-bold text-white">실험 변수 및 물리 파라미터 조절</h2>
+                    <span class="text-[11px] font-mono text-rose-400 font-semibold">V_Paschen = 327.0 V (고정)</span>
+                </div>
+
+                <!-- Slider 1: Tilt Angle -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label class="font-medium text-slate-300">1. 기판 경사각 ($\theta_{\text{tilt}}$)</label>
+                        <span id="val-angle" class="font-mono font-bold text-sky-400">45°</span>
+                    </div>
+                    <input type="range" id="slider-angle" min="10" max="90" step="1" value="45" class="w-full">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span>10° (수막 정체 심함)</span>
+                        <span>45°</span>
+                        <span>90° (수직 빠른 이탈)</span>
+                    </div>
+                </div>
+
+                <!-- Slider 2: Water Film Attenuation Constant k -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label class="font-medium text-slate-300">2. 수막 전하 감쇄 상수 ($k$)</label>
+                        <span id="val-k" class="font-mono font-bold text-cyan-400">0.08</span>
+                    </div>
+                    <input type="range" id="slider-k" min="0.01" max="1.20" step="0.01" value="0.08" class="w-full">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span>0.01 (초소수성)</span>
+                        <span>PTFE: 0.08 | PVC: 0.30 | PI: 0.42</span>
+                        <span>1.20 (친수성)</span>
+                    </div>
+                </div>
+
+                <!-- Slider 3: Oscilloscope Measurement Efficiency eta_meas -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label class="font-medium text-slate-300">3. 계측 분전압 효율 ($\eta_{\text{meas}}$)</label>
+                        <span id="val-eta" class="font-mono font-bold text-amber-400">0.30</span>
+                    </div>
+                    <input type="range" id="slider-eta" min="0.10" max="1.00" step="0.01" value="0.30" class="w-full">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span>0.10 (고임피던스 손실 큼)</span>
+                        <span>0.30 (일반 오실로스코프 보정)</span>
+                        <span>1.00 (이상적 무손실)</span>
+                    </div>
+                </div>
+
+                <!-- Material Constants Display / Editable -->
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                    <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                        <label class="block text-[10px] text-slate-400 mb-0.5">표면전하밀도 $|\sigma_d|$ ($\mu\text{C/m}^2$)</label>
+                        <input type="number" id="input-sigma" value="150" min="1" max="500" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 font-mono text-white text-xs focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                        <label class="block text-[10px] text-slate-400 mb-0.5">상대유전율 ($\varepsilon_r$)</label>
+                        <input type="number" id="input-eps" value="2.1" step="0.1" min="1.0" max="20.0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 font-mono text-white text-xs focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                        <label class="block text-[10px] text-slate-400 mb-0.5">유전체 두께 $d$ ($\mu\text{m}$)</label>
+                        <input type="number" id="input-thick" value="100" min="10" max="1000" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 font-mono text-white text-xs focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Theory Curve & Experimental Curve Fitting Card -->
+            <div class="lab-panel p-4 flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h2 class="text-sm font-bold text-white">경사각별 피크 전압($V_{\text{peak}}$) 이론 곡선 & 피팅</h2>
+                        <p class="text-[11px] text-slate-400">파란 곡선: 통합 모델 | 노란 점: 현재 각도 | 초록 점: 실험값</p>
+                    </div>
+                    <div class="text-right font-mono">
+                        <span class="text-[10px] text-slate-400 block">모델 적합도 ($R^2$)</span>
+                        <span id="r2-score" class="text-sm font-bold text-emerald-400">0.992</span>
+                    </div>
+                </div>
+
+                <!-- Chart Container -->
+                <div class="relative w-full h-[210px] bg-slate-950/70 rounded-xl border border-slate-800 p-2 mb-3">
+                    <canvas id="theoryChart"></canvas>
+                </div>
+
+                <!-- Experimental Data Table & Auto-Fit Tool -->
+                <div class="bg-slate-900/90 rounded-xl border border-slate-800 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span class="text-xs font-semibold text-slate-200">실험 측정 데이터 ($V_{\text{exp}}$)</span>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="addExpRow()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition">
+                                + 행 추가
+                            </button>
+                            <button onclick="autoFitParameters()" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-md shadow-emerald-500/20">
+                                ✨ 자동 피팅 (k, η 추출)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="max-h-[125px] overflow-y-auto pr-1">
+                        <table class="w-full text-xs text-left border-collapse">
+                            <thead>
+                                <tr class="text-slate-400 border-b border-slate-800">
+                                    <th class="py-1 px-2">경사각 $\theta$ (°)</th>
+                                    <th class="py-1 px-2">측정 전압 $V_{\text{exp}}$ (V)</th>
+                                    <th class="py-1 px-2">이론 예측값 (V)</th>
+                                    <th class="py-1 px-2 text-right">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody id="exp-table-body" class="font-mono divide-y divide-slate-800/60">
+                                <!-- Rows injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="fit-feedback" class="mt-2 text-[11px] text-emerald-300 hidden"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. STATE & CONSTANTS
+        // ==========================================
+        const EPS_0 = 8.854e-12;
+        const V_PASCHEN = 327.0; // Standard air Paschen minimum breakdown voltage (V)
+
+        const MATERIALS = {
+            PTFE: { name: 'PTFE', sigma: 150, eps: 2.1, k: 0.08, eta: 0.30 },
+            PI:   { name: 'PI',   sigma: 80,  eps: 3.4, k: 0.42, eta: 0.30 },
+            PVC:  { name: 'PVC',  sigma: 45,  eps: 3.2, k: 0.30, eta: 0.30 }
+        };
+
+        let state = {
+            material: 'PTFE',
+            angleDeg: 45,
+            k: 0.08,
+            etaMeas: 0.30,
+            sigma_uC: 150,
+            eps_r: 2.1,
+            thick_um: 100,
+            autoDrop: false,
+            autoDropTimer: 0,
+            filmThickness: 0.0,
+            sparkIntensity: 0.0,
+            lastPeakV: 0.0
+        };
+
+        // Sample experimental PTFE data matching ~60-72V range with V_Paschen=327V & eta=0.30
+        let expData = [
+            { angle: 15, vExp: 54.0 },
+            { angle: 30, vExp: 63.5 },
+            { angle: 45, vExp: 67.2 },
+            { angle: 60, vExp: 68.8 },
+            { angle: 75, vExp: 69.5 }
+        ];
+
+        // ==========================================
+        // 2. PHYSICS EQUATIONS
+        // ==========================================
+        function getIdealMaxVoltage() {
+            const sigma = state.sigma_uC * 1e-6;
+            const d = state.thick_um * 1e-6;
+            return (sigma * d) / (EPS_0 * state.eps_r);
+        }
+
+        function calculateTheoreticalVpeak(angleDeg, kVal = state.k, etaVal = state.etaMeas) {
+            const rad = (angleDeg * Math.PI) / 180;
+            const sinTheta = Math.max(0.01, Math.sin(rad));
+            const vIdeal = getIdealMaxVoltage();
+            const expFactor = Math.exp(-kVal / sinTheta);
+            const vFilm = vIdeal * expFactor;
+            // Harmonic saturation with V_Paschen = 327 V, scaled by oscilloscope measurement efficiency eta_meas
+            const vInternal = (vFilm * V_PASCHEN) / (vFilm + V_PASCHEN);
+            const vPeak = etaVal * vInternal;
+            return { vPeak, vInternal, vFilm, vIdeal, sinTheta, expFactor };
+        }
+
+        // ==========================================
+        // 3. UI & LIVE NUMERICAL FORMULA UPDATER
+        // ==========================================
+        const sliderAngle = document.getElementById('slider-angle');
+        const sliderK = document.getElementById('slider-k');
+        const sliderEta = document.getElementById('slider-eta');
+        const inputSigma = document.getElementById('input-sigma');
+        const inputEps = document.getElementById('input-eps');
+        const inputThick = document.getElementById('input-thick');
+
+        function selectMaterial(matKey) {
+            state.material = matKey;
+            const m = MATERIALS[matKey];
+            state.sigma_uC = m.sigma;
+            state.eps_r = m.eps;
+            state.k = m.k;
+            state.etaMeas = m.eta;
+
+            inputSigma.value = m.sigma;
+            inputEps.value = m.eps;
+            sliderK.value = m.k;
+            sliderEta.value = m.eta;
+            document.getElementById('legend-mat').textContent = m.name;
+
+            document.querySelectorAll('.mat-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-500', 'text-slate-950', 'shadow-lg', 'shadow-sky-500/25');
+                btn.classList.add('text-slate-300', 'hover:bg-slate-800');
+            });
+            const activeBtn = document.getElementById(`btn-${matKey}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-slate-800');
+                activeBtn.classList.add('bg-sky-500', 'text-slate-950', 'shadow-lg', 'shadow-sky-500/25');
+            }
+
+            updateAllCalculations();
+        }
+
+        function syncInputsToState() {
+            state.angleDeg = parseFloat(sliderAngle.value);
+            state.k = parseFloat(sliderK.value);
+            state.etaMeas = parseFloat(sliderEta.value);
+            state.sigma_uC = Math.max(1, parseFloat(inputSigma.value) || 1);
+            state.eps_r = Math.max(1, parseFloat(inputEps.value) || 1);
+            state.thick_um = Math.max(1, parseFloat(inputThick.value) || 10);
+            updateAllCalculations();
+        }
+
+        [sliderAngle, sliderK, sliderEta, inputSigma, inputEps, inputThick].forEach(el => {
+            el.addEventListener('input', syncInputsToState);
+        });
+
+        function updateLiveFormulaPanel(res) {
+            document.getElementById('eq-videal-top').textContent = `${res.vIdeal.toFixed(1)} V`;
+            document.getElementById('eq-mat-label').textContent = state.material;
+
+            const vIdealStr = res.vIdeal.toFixed(1);
+            const kStr = state.k.toFixed(2);
+            const sinStr = res.sinTheta.toFixed(3);
+            const expValStr = res.expFactor.toFixed(3);
+            const vFilmStr = res.vFilm.toFixed(1);
+            const etaStr = state.etaMeas.toFixed(2);
+            const vPeakStr = res.vPeak.toFixed(2);
+
+            const container = document.getElementById('live-numerical-formula');
+            container.innerHTML = `
+                <div class="flex flex-col gap-1.5">
+                    <div>
+                        <span class="text-slate-400">V<sub>peak</sub>(<span class="text-sky-400 font-bold">${state.angleDeg}°</span>) = </span>
+                        <span class="text-amber-400 font-bold">${etaStr}</span>
+                        <span class="text-slate-400"> × [ (</span>
+                        <span class="text-sky-300">${vIdealStr}</span>
+                        <span class="text-slate-400"> · exp(-</span><span class="text-cyan-400 font-bold">${kStr}</span><span class="text-slate-400"> / </span><span class="text-sky-400">${sinStr}</span><span class="text-slate-400">) · </span>
+                        <span class="text-rose-400 font-bold">327</span>
+                        <span class="text-slate-400">) / (</span>
+                        <span class="text-sky-300">${vIdealStr}</span>
+                        <span class="text-slate-400"> · exp(-</span><span class="text-cyan-400 font-bold">${kStr}</span><span class="text-slate-400"> / </span><span class="text-sky-400">${sinStr}</span><span class="text-slate-400">) + </span>
+                        <span class="text-rose-400 font-bold">327</span>
+                        <span class="text-slate-400">) ]</span>
+                    </div>
+                    <div class="pt-1 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
+                        <span class="text-slate-400">= <span class="text-amber-400">${etaStr}</span> × [ (<span class="text-sky-300">${vIdealStr} × ${expValStr}</span> × <span class="text-rose-400">327</span>) / (<span class="text-sky-300">${vFilmStr}</span> + <span class="text-rose-400">327</span>) ]</span>
+                        <span class="text-slate-400">= <span class="text-amber-400">${etaStr}</span> × <span class="text-slate-200">${res.vInternal.toFixed(1)} V</span></span>
+                        <span class="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-sm">
+                            = ${vPeakStr} V
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateAllCalculations() {
+            document.getElementById('val-angle').textContent = `${state.angleDeg}°`;
+            document.getElementById('hud-angle').textContent = `${state.angleDeg}°`;
+            document.getElementById('val-k').textContent = state.k.toFixed(2);
+            document.getElementById('val-eta').textContent = state.etaMeas.toFixed(2);
+
+            const res = calculateTheoreticalVpeak(state.angleDeg);
+            document.getElementById('hud-vpeak').textContent = `${res.vPeak.toFixed(1)} V`;
+
+            updateLiveFormulaPanel(res);
+
+            // Paschen saturation badge when V_film > 327V
+            const paschenBadge = document.getElementById('paschen-badge');
+            if (res.vFilm > V_PASCHEN) {
+                paschenBadge.classList.remove('hidden');
+            } else {
+                paschenBadge.classList.add('hidden');
+            }
+
+            updateChart();
+            renderExpTable();
+        }
+
+        // ==========================================
+        // 4. CHART.JS THEORY & FITTING GRAPH
+        // ==========================================
+        const ctxChart = document.getElementById('theoryChart').getContext('2d');
+        const angleLabels = Array.from({ length: 81 }, (_, i) => i + 10); // 10° to 90°
+
+        const theoryChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: angleLabels,
+                datasets: [
+                    {
+                        label: '완성형 이론 모델 V_peak(θ)',
+                        data: [],
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                        borderWidth: 2.5,
+                        pointRadius: 0,
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: '파셴 한계 천장 (η · 327V)',
+                        data: [],
+                        borderColor: '#f43f5e',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: '현재 설정 각도',
+                        data: [],
+                        type: 'scatter',
+                        backgroundColor: '#fbbf24',
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                        pointRadius: 7,
+                        pointHoverRadius: 9
+                    },
+                    {
+                        label: '실험 측정값 (V_exp)',
+                        data: [],
+                        type: 'scatter',
+                        backgroundColor: '#10b981',
+                        borderColor: '#064e3b',
+                        borderWidth: 1.5,
+                        pointRadius: 5.5,
+                        pointHoverRadius: 7
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                interaction: { mode: 'nearest', intersect: false },
+                plugins: {
+                    legend: {
+                        labels: { color: '#cbd5e1', font: { size: 10, family: 'Inter' }, boxWidth: 12 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} V (${ctx.parsed.x}°)`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: 10,
+                        max: 90,
+                        title: { display: true, text: '기판 경사각 θ_tilt (°)', color: '#94a3b8', font: { size: 11 } },
+                        grid: { color: 'rgba(51, 65, 85, 0.4)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 } }
+                    },
+                    y: {
+                        min: 0,
+                        title: { display: true, text: '피크 전압 V_peak (V)', color: '#94a3b8', font: { size: 11 } },
+                        grid: { color: 'rgba(51, 65, 85, 0.4)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 } }
+                    }
+                }
+            }
+        });
+
+        function updateChart() {
+            const curvePoints = angleLabels.map(deg => ({
+                x: deg,
+                y: calculateTheoreticalVpeak(deg).vPeak
+            }));
+            const scaledCeiling = state.etaMeas * V_PASCHEN;
+            const limitPoints = [
+                { x: 10, y: scaledCeiling },
+                { x: 90, y: scaledCeiling }
+            ];
+            const currentPoint = [{
+                x: state.angleDeg,
+                y: calculateTheoreticalVpeak(state.angleDeg).vPeak
+            }];
+            const scatterExp = expData.map(pt => ({ x: pt.angle, y: pt.vExp }));
+
+            theoryChart.data.datasets[0].data = curvePoints;
+            theoryChart.data.datasets[1].data = limitPoints;
+            theoryChart.data.datasets[2].data = currentPoint;
+            theoryChart.data.datasets[3].data = scatterExp;
+
+            const maxExp = expData.length ? Math.max(...expData.map(d => d.vExp)) : 0;
+            const suggestedMax = Math.max(scaledCeiling * 1.25, maxExp * 1.2, 50);
+            theoryChart.options.scales.y.max = Math.ceil(suggestedMax / 10) * 10;
+
+            theoryChart.update();
+            calculateR2();
+        }
+
+        // ==========================================
+        // 5. EXPERIMENTAL DATA TABLE & AUTO-FITTING
+        // ==========================================
+        function renderExpTable() {
+            const tbody = document.getElementById('exp-table-body');
+            tbody.innerHTML = '';
+            expData.forEach((row, idx) => {
+                const pred = calculateTheoreticalVpeak(row.angle).vPeak;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-1 px-2">
+                        <input type="number" value="${row.angle}" min="1" max="90" onchange="updateExpRow(${idx}, 'angle', this.value)"
+                            class="w-14 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 focus:border-sky-400 focus:outline-none">
+                    </td>
+                    <td class="py-1 px-2">
+                        <input type="number" value="${row.vExp}" step="0.1" min="0" onchange="updateExpRow(${idx}, 'vExp', this.value)"
+                            class="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-emerald-300 focus:border-emerald-400 focus:outline-none">
+                    </td>
+                    <td class="py-1 px-2 text-sky-400">${pred.toFixed(1)} V</td>
+                    <td class="py-1 px-2 text-right">
+                        <button onclick="removeExpRow(${idx})" class="text-slate-500 hover:text-rose-400 px-1">✕</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateExpRow(idx, field, val) {
+            const num = parseFloat(val);
+            if (!isNaN(num)) {
+                expData[idx][field] = num;
+                updateAllCalculations();
+            }
+        }
+
+        function addExpRow() {
+            const nextAngle = expData.length > 0 ? Math.min(90, expData[expData.length - 1].angle + 10) : 30;
+            const estV = parseFloat(calculateTheoreticalVpeak(nextAngle).vPeak.toFixed(1));
+            expData.push({ angle: nextAngle, vExp: estV });
+            updateAllCalculations();
+        }
+
+        function removeExpRow(idx) {
+            if (expData.length > 1) {
+                expData.splice(idx, 1);
+                updateAllCalculations();
+            }
+        }
+
+        function calculateR2() {
+            if (expData.length < 2) {
+                document.getElementById('r2-score').textContent = 'N/A';
+                return 0;
+            }
+            const meanY = expData.reduce((acc, d) => acc + d.vExp, 0) / expData.length;
+            let ssTot = 0;
+            let ssRes = 0;
+            expData.forEach(d => {
+                const yPred = calculateTheoreticalVpeak(d.angle).vPeak;
+                ssTot += Math.pow(d.vExp - meanY, 2);
+                ssRes += Math.pow(d.vExp - yPred, 2);
+            });
+            const r2 = ssTot === 0 ? 1 : 1 - (ssRes / ssTot);
+            const r2El = document.getElementById('r2-score');
+            r2El.textContent = r2.toFixed(4);
+            r2El.className = r2 >= 0.9 ? 'text-sm font-bold text-emerald-400' : 'text-sm font-bold text-amber-400';
+            return r2;
+        }
+
+        // Nonlinear Curve Fitting for k and eta_meas (with fixed V_Paschen = 327V)
+        function autoFitParameters() {
+            if (expData.length === 0) return;
+
+            let bestK = state.k;
+            let bestEta = state.etaMeas;
+            let minError = Infinity;
+
+            // Coarse grid search
+            for (let k = 0.01; k <= 1.20; k += 0.02) {
+                for (let eta = 0.05; eta <= 1.00; eta += 0.02) {
+                    let err = 0;
+                    for (const pt of expData) {
+                        const pred = calculateTheoreticalVpeak(pt.angle, k, eta).vPeak;
+                        err += Math.pow(pt.vExp - pred, 2);
+                    }
+                    if (err < minError) {
+                        minError = err;
+                        bestK = k;
+                        bestEta = eta;
+                    }
+                }
+            }
+
+            // Fine grid refinement
+            const kStart = Math.max(0.01, bestK - 0.03);
+            const kEnd = Math.min(1.20, bestK + 0.03);
+            const eStart = Math.max(0.05, bestEta - 0.03);
+            const eEnd = Math.min(1.00, bestEta + 0.03);
+
+            for (let k = kStart; k <= kEnd; k += 0.002) {
+                for (let eta = eStart; eta <= eEnd; eta += 0.002) {
+                    let err = 0;
+                    for (const pt of expData) {
+                        const pred = calculateTheoreticalVpeak(pt.angle, k, eta).vPeak;
+                        err += Math.pow(pt.vExp - pred, 2);
+                    }
+                    if (err < minError) {
+                        minError = err;
+                        bestK = k;
+                        bestEta = eta;
+                    }
+                }
+            }
+
+            state.k = parseFloat(bestK.toFixed(3));
+            state.etaMeas = parseFloat(bestEta.toFixed(3));
+            sliderK.value = state.k;
+            sliderEta.value = state.etaMeas;
+
+            updateAllCalculations();
+            const r2 = calculateR2();
+
+            const fb = document.getElementById('fit-feedback');
+            fb.textContent = `피팅 완료! 수막 감쇄 상수 k = ${state.k.toFixed(3)}, 계측 효율 η_meas = ${state.etaMeas.toFixed(2)} (R² = ${r2.toFixed(4)})`;
+            fb.classList.remove('hidden');
+        }
+
+        // ==========================================
+        // 6. 2D INTERACTIVE PHYSICS & OSCILLOSCOPE CANVAS
+        // ==========================================
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const oscCanvas = document.getElementById('oscCanvas');
+        const oscCtx = oscCanvas.getContext('2d');
+
+        let droplets = [];
+        let electrons = [];
+        let oscHistory = new Array(220).fill(0);
+        let currentVoltageSignal = 0;
+
+        function resizeCanvases() {
+            const simRect = simCanvas.parentElement.getBoundingClientRect();
+            simCanvas.width = simRect.width;
+            simCanvas.height = simRect.height;
+
+            const oscRect = oscCanvas.parentElement.getBoundingClientRect();
+            oscCanvas.width = oscRect.width;
+            oscCanvas.height = oscRect.height;
+        }
+        window.addEventListener('resize', resizeCanvases);
+
+        function spawnDroplet() {
+            const w = simCanvas.width;
+            droplets.push({
+                x: w * 0.38,
+                y: 44,
+                vx: 0,
+                vy: 1.5,
+                radius: 11,
+                state: 'falling',
+                localX: 0,
+                slideSpeed: 0,
+                spreadFactor: 1.0,
+                triggeredPulse: false
+            });
+        }
+
+        function toggleAutoDrop() {
+            state.autoDrop = !state.autoDrop;
+            const dot = document.getElementById('auto-dot');
+            const txt = document.getElementById('auto-text');
+            if (state.autoDrop) {
+                dot.classList.remove('bg-slate-500');
+                dot.classList.add('bg-emerald-400', 'animate-ping');
+                txt.textContent = 'ON';
+                txt.classList.add('text-emerald-400');
+                spawnDroplet();
+            } else {
+                dot.classList.add('bg-slate-500');
+                dot.classList.remove('bg-emerald-400', 'animate-ping');
+                txt.textContent = 'OFF';
+                txt.classList.remove('text-emerald-400');
+            }
+        }
+
+        function clearWaterFilm() {
+            state.filmThickness = 0;
+        }
+
+        function triggerTengPulse() {
+            const baseV = calculateTheoreticalVpeak(state.angleDeg).vPeak;
+            const filmPenalty = Math.exp(-state.filmThickness * state.k * 2.2);
+            const measuredV = baseV * filmPenalty;
+
+            state.lastPeakV = measuredV;
+            currentVoltageSignal = measuredV;
+            state.sparkIntensity = 1.0;
+
+            document.getElementById('osc-last-peak').textContent = `${measuredV.toFixed(1)} V`;
+
+            for (let i = 0; i < 8; i++) {
+                electrons.push({
+                    progress: i * 0.12,
+                    speed: 0.035
+                });
+            }
+
+            const sinT = Math.max(0.1, Math.sin((state.angleDeg * Math.PI) / 180));
+            const addedFilm = (0.25 * state.k) / sinT;
+            state.filmThickness = Math.min(1.0, state.filmThickness + addedFilm);
+        }
+
+        simCanvas.addEventListener('click', () => spawnDroplet());
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                spawnDroplet();
+            }
+        });
+
+        function animate() {
+            const w = simCanvas.width;
+            const h = simCanvas.height;
+            simCtx.clearRect(0, 0, w, h);
+
+            if (state.autoDrop) {
+                state.autoDropTimer++;
+                if (state.autoDropTimer > 60) {
+                    spawnDroplet();
+                    state.autoDropTimer = 0;
+                }
+            }
+
+            const sinT = Math.sin((state.angleDeg * Math.PI) / 180);
+            const drainRate = 0.0015 + 0.0045 * sinT;
+            state.filmThickness = Math.max(0, state.filmThickness - drainRate);
+
+            state.sparkIntensity = Math.max(0, state.sparkIntensity - 0.04);
+            currentVoltageSignal *= 0.86;
+            oscHistory.push(currentVoltageSignal);
+            oscHistory.shift();
+
+            // Nozzle
+            const nozzleX = w * 0.38;
+            simCtx.fillStyle = '#475569';
+            simCtx.fillRect(nozzleX - 8, 0, 16, 24);
+            simCtx.fillStyle = '#94a3b8';
+            simCtx.fillRect(nozzleX - 4, 24, 8, 12);
+
+            // Substrate
+            const pivotX = w * 0.52;
+            const pivotY = h * 0.60;
+            const plateLen = Math.min(w * 0.62, 330);
+            const rad = (state.angleDeg * Math.PI) / 180;
+
+            simCtx.save();
+            simCtx.translate(pivotX, pivotY);
+            simCtx.rotate(rad);
+
+            const halfL = plateLen / 2;
+            const dielectricH = 16;
+            const electrodeH = 8;
+
+            // Bottom Electrode
+            simCtx.fillStyle = '#e11d48';
+            simCtx.fillRect(-halfL, dielectricH / 2, plateLen, electrodeH);
+
+            // Dielectric Layer
+            simCtx.fillStyle = state.material === 'PI' ? '#d97706' : (state.material === 'PVC' ? '#64748b' : '#0284c7');
+            simCtx.fillRect(-halfL, -dielectricH / 2, plateLen, dielectricH);
+
+            // Surface Negative Charges (-)
+            simCtx.fillStyle = '#bae6fd';
+            simCtx.font = 'bold 11px JetBrains Mono';
+            simCtx.textAlign = 'center';
+            const numCharges = 12;
+            for (let i = 0; i < numCharges; i++) {
+                const cx = -halfL + 18 + (i * (plateLen - 36)) / (numCharges - 1);
+                simCtx.fillText('-', cx, 3);
+            }
+
+            // Residual Water Film Layer
+            if (state.filmThickness > 0.01) {
+                simCtx.fillStyle = `rgba(34, 211, 238, ${state.filmThickness * 0.6})`;
+                const filmH = 2 + state.filmThickness * 6;
+                simCtx.fillRect(-halfL + 10, -dielectricH / 2 - filmH, plateLen - 20, filmH);
+            }
+
+            // Top Electrode
+            const topElecX = halfL * 0.25;
+            const topElecW = 28;
+            simCtx.fillStyle = '#fbbf24';
+            simCtx.fillRect(topElecX, -dielectricH / 2 - 5, topElecW, 5);
+
+            // Spark Glow
+            if (state.sparkIntensity > 0.05) {
+                simCtx.save();
+                simCtx.shadowColor = '#38bdf8';
+                simCtx.shadowBlur = 20 * state.sparkIntensity;
+                simCtx.fillStyle = `rgba(255, 255, 255, ${state.sparkIntensity})`;
+                simCtx.beginPath();
+                simCtx.arc(topElecX + topElecW / 2, -dielectricH / 2 - 4, 10 * state.sparkIntensity, 0, Math.PI * 2);
+                simCtx.fill();
+                simCtx.restore();
+            }
+
+            const cosR = Math.cos(rad);
+            const sinR = Math.sin(rad);
+            const topTermLocalX = topElecX + topElecW;
+            const topTermLocalY = -dielectricH / 2 - 2;
+            const botTermLocalX = halfL;
+            const botTermLocalY = dielectricH / 2 + electrodeH / 2;
+
+            const topWorldX = pivotX + topTermLocalX * cosR - topTermLocalY * sinR;
+            const topWorldY = pivotY + topTermLocalX * sinR + topTermLocalY * cosR;
+            const botWorldX = pivotX + botTermLocalX * cosR - botTermLocalY * sinR;
+            const botWorldY = pivotY + botTermLocalX * sinR + botTermLocalY * cosR;
+
+            for (let i = droplets.length - 1; i >= 0; i--) {
+                const d = droplets[i];
+
+                if (d.state === 'falling') {
+                    d.vy += 0.32;
+                    d.y += d.vy;
+
+                    const dx = d.x - pivotX;
+                    const dy = d.y - pivotY;
+                    const localX = dx * cosR + dy * sinR;
+                    const localY = -dx * sinR + dy * cosR;
+
+                    if (localY + d.radius >= -dielectricH / 2 && localX >= -halfL && localX <= halfL) {
+                        d.state = 'sliding';
+                        d.localX = localX;
+                        d.slideSpeed = Math.max(1.2, d.vy * Math.sqrt(sinR) * 0.85);
+                        d.spreadFactor = 1.65;
+                    } else if (d.y > h + 30) {
+                        droplets.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                if (d.state === 'sliding') {
+                    d.slideSpeed += 0.25 * sinR;
+                    d.localX += d.slideSpeed;
+                    d.spreadFactor += (1.0 - d.spreadFactor) * 0.1;
+
+                    if (!d.triggeredPulse && d.localX + d.radius * d.spreadFactor >= topElecX) {
+                        d.triggeredPulse = true;
+                        triggerTengPulse();
+                    }
+
+                    simCtx.save();
+                    simCtx.translate(d.localX, -dielectricH / 2);
+                    simCtx.scale(d.spreadFactor, 1 / Math.sqrt(d.spreadFactor));
+                    simCtx.beginPath();
+                    simCtx.arc(0, -d.radius * 0.75, d.radius, Math.PI, 0, false);
+                    simCtx.quadraticCurveTo(d.radius, 0, 0, 0);
+                    simCtx.quadraticCurveTo(-d.radius, 0, -d.radius, -d.radius * 0.75);
+                    simCtx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+                    simCtx.fill();
+                    simCtx.strokeStyle = '#e0f2fe';
+                    simCtx.lineWidth = 1.2;
+                    simCtx.stroke();
+                    simCtx.restore();
+
+                    if (d.localX > halfL + 20) {
+                        droplets.splice(i, 1);
+                    }
+                }
+            }
+
+            simCtx.restore();
+
+            droplets.forEach(d => {
+                if (d.state === 'falling') {
+                    simCtx.beginPath();
+                    simCtx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+                    simCtx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+                    simCtx.fill();
+                    simCtx.strokeStyle = '#bae6fd';
+                    simCtx.lineWidth = 1.5;
+                    simCtx.stroke();
+                }
+            });
+
+            // External Circuit Wire & Voltmeter
+            const wireRightX = Math.min(w - 35, pivotX + halfL + 75);
+            const midWireY = (topWorldY + botWorldY) / 2;
+
+            simCtx.strokeStyle = '#64748b';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.moveTo(topWorldX, topWorldY);
+            simCtx.lineTo(wireRightX, topWorldY);
+            simCtx.lineTo(wireRightX, botWorldY);
+            simCtx.lineTo(botWorldX, botWorldY);
+            simCtx.stroke();
+
+            simCtx.fillStyle = '#0f172a';
+            simCtx.strokeStyle = state.sparkIntensity > 0.1 ? '#fbbf24' : '#38bdf8';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.arc(wireRightX, midWireY, 16, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            simCtx.fillStyle = state.sparkIntensity > 0.1 ? '#fbbf24' : '#38bdf8';
+            simCtx.font = 'bold 12px JetBrains Mono';
+            simCtx.textAlign = 'center';
+            simCtx.textBaseline = 'middle';
+            simCtx.fillText('V', wireRightX, midWireY);
+
+            for (let i = electrons.length - 1; i >= 0; i--) {
+                const el = electrons[i];
+                el.progress += el.speed;
+                if (el.progress >= 1) {
+                    electrons.splice(i, 1);
+                    continue;
+                }
+                let ex, ey;
+                if (el.progress < 0.3) {
+                    const t = el.progress / 0.3;
+                    ex = topWorldX + (wireRightX - topWorldX) * t;
+                    ey = topWorldY;
+                } else if (el.progress < 0.7) {
+                    const t = (el.progress - 0.3) / 0.4;
+                    ex = wireRightX;
+                    ey = topWorldY + (botWorldY - topWorldY) * t;
+                } else {
+                    const t = (el.progress - 0.7) / 0.3;
+                    ex = wireRightX + (botWorldX - wireRightX) * t;
+                    ey = botWorldY;
+                }
+                simCtx.fillStyle = '#fde047';
+                simCtx.beginPath();
+                simCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+                simCtx.fill();
+            }
+
+            drawOscilloscope();
+            requestAnimationFrame(animate);
+        }
+
+        function drawOscilloscope() {
+            const ow = oscCanvas.width;
+            const oh = oscCanvas.height;
+            oscCtx.clearRect(0, 0, ow, oh);
+
+            oscCtx.strokeStyle = 'rgba(51, 65, 85, 0.45)';
+            oscCtx.lineWidth = 1;
+            for (let x = 0; x < ow; x += 40) {
+                oscCtx.beginPath();
+                oscCtx.moveTo(x, 0);
+                oscCtx.lineTo(x, oh);
+                oscCtx.stroke();
+            }
+            for (let y = 0; y < oh; y += 26) {
+                oscCtx.beginPath();
+                oscCtx.moveTo(0, y);
+                oscCtx.lineTo(ow, y);
+                oscCtx.stroke();
+            }
+
+            const baseY = oh - 20;
+            oscCtx.strokeStyle = '#475569';
+            oscCtx.beginPath();
+            oscCtx.moveTo(0, baseY);
+            oscCtx.lineTo(ow, baseY);
+            oscCtx.stroke();
+
+            const maxScaleV = Math.max(100, state.etaMeas * V_PASCHEN * 1.25);
+            oscCtx.strokeStyle = '#34d399';
+            oscCtx.lineWidth = 2.2;
+            oscCtx.shadowColor = 'rgba(52, 211, 153, 0.5)';
+            oscCtx.shadowBlur = 6;
+            oscCtx.beginPath();
+
+            for (let i = 0; i < oscHistory.length; i++) {
+                const px = (i / (oscHistory.length - 1)) * ow;
+                const py = baseY - (oscHistory[i] / maxScaleV) * (oh - 34);
+                if (i === 0) oscCtx.moveTo(px, py);
+                else oscCtx.lineTo(px, py);
+            }
+            oscCtx.stroke();
+            oscCtx.shadowBlur = 0;
+        }
+
+        window.onload = function () {
+            resizeCanvases();
+            selectMaterial('PTFE');
+            setTimeout(spawnDroplet, 300);
+            animate();
+        };
+    </script>
+</body>
+</html>
